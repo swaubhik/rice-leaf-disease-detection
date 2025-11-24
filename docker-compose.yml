@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./exported_models:/app/exported_models:ro
+    environment:
+      - MODEL_PATH=exported_models/model.pt
+      - METADATA_PATH=exported_models/model_metadata.json
+    restart: unless-stopped
