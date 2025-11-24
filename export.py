@@ -141,22 +141,81 @@ def main(args):
     print(f"Number of classes: {num_classes}")
     print(f"Classes: {classes}")
     
-    # Create model
-    print(f"\nCreating model: {args.model_name}")
-    model = create_model(
-        num_classes=num_classes,
-        model_name=args.model_name,
-        pretrained=False,
-        device=device
-    )
-    
-    # Load trained weights
+    # Load trained weights (robust handling for full checkpoints vs state_dicts)
     model_path = os.path.join(args.model_dir, args.model_file)
     if not os.path.exists(model_path):
         raise FileNotFoundError(f"Model file not found at {model_path}")
-    
+
     print(f"Loading model weights from: {model_path}")
-    model.load_state_dict(torch.load(model_path, map_location=device))
+
+    # Load checkpoint (could be a state_dict or a checkpoint dict)
+    ckpt = torch.load(model_path, map_location=device)
+
+    # Determine state_dict and any saved metadata
+    state_dict = None
+    ckpt_model_name = None
+    ckpt_num_classes = None
+    ckpt_classes = None
+
+    if isinstance(ckpt, dict):
+        # Common keys used by our training script
+        if 'model_state_dict' in ckpt:
+            state_dict = ckpt['model_state_dict']
+        elif 'state_dict' in ckpt:
+            state_dict = ckpt['state_dict']
+        else:
+            # Heuristic: if values are tensors, assume it IS a state_dict
+            if all(isinstance(v, torch.Tensor) for v in ckpt.values()):
+                state_dict = ckpt
+
+        if 'model_name' in ckpt:
+            ckpt_model_name = ckpt['model_name']
+        if 'num_classes' in ckpt:
+            ckpt_num_classes = ckpt['num_classes']
+        if 'classes' in ckpt:
+            ckpt_classes = ckpt['classes']
+    else:
+        # ckpt is probably a plain state_dict
+        state_dict = ckpt
+
+    # Prefer metadata from checkpoint when available
+    model_name_to_use = ckpt_model_name or args.model_name
+    if ckpt_num_classes is not None:
+        num_classes = ckpt_num_classes
+    elif ckpt_classes is not None and len(ckpt_classes) > 0:
+        num_classes = len(ckpt_classes)
+
+    print(f"\nCreating model: {model_name_to_use} (num_classes={num_classes})")
+    model = create_model(
+        num_classes=num_classes,
+        model_name=model_name_to_use,
+        pretrained=False,
+        device=device
+    )
+
+    # If state_dict is available, try loading it. Handle DataParallel prefixes.
+    if state_dict is None:
+        raise RuntimeError("No state_dict found in the checkpoint. Cannot load model weights.")
+
+    # Remove 'module.' prefix if present (from DataParallel)
+    new_state = {}
+    for k, v in state_dict.items():
+        new_key = k
+        if k.startswith('module.'):
+            new_key = k[len('module.'):]
+        new_state[new_key] = v
+
+    try:
+        model.load_state_dict(new_state)
+    except RuntimeError as e:
+        # Provide a helpful error message for shape mismatch
+        raise RuntimeError(
+            f"Failed to load state_dict into model: {e}\n"
+            f"This usually means the checkpoint was trained with a different architecture (e.g. EfficientNet vs ResNet).\n"
+            f"Checkpoint model_name: {ckpt_model_name}, export requested model_name: {args.model_name}.\n"
+            f"Set --model-name to the model used during training or train a model with the requested architecture."
+        )
+
     model.eval()
     print("Model loaded successfully!")
     

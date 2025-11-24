@@ -6,7 +6,9 @@ from typing import List, Dict
 import torch
 import torch.nn.functional as F
 from fastapi import FastAPI, File, UploadFile, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image
 import io
 import numpy as np
@@ -21,6 +23,20 @@ app = FastAPI(
     description="API for detecting diseases in rice leaves using deep learning",
     version="1.0.0"
 )
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Mount static files
+static_dir = Path(__file__).parent / "static"
+static_dir.mkdir(exist_ok=True)
+app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
 # Global model inference object
 model_inference = None
@@ -45,16 +61,20 @@ async def startup_event():
     print("Model loaded successfully!")
 
 
-@app.get("/", response_model=Dict[str, str])
+@app.get("/")
 async def root():
-    """Root endpoint."""
+    """Serve the web interface."""
+    static_file = Path(__file__).parent / "static" / "index.html"
+    if static_file.exists():
+        return FileResponse(static_file)
     return {
         "message": "Rice Leaf Disease Detection API",
         "version": "1.0.0",
         "endpoints": {
             "health": "/health",
             "predict": "/predict",
-            "docs": "/docs"
+            "docs": "/docs",
+            "web": "/"
         }
     }
 
