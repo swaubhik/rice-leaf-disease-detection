@@ -362,7 +362,7 @@
     </div>
 
     <script>
-        const API_URL = 'http://localhost:8080';
+        const API_URL = 'https://rice.eagriassit.in';
 
         const uploadArea = document.getElementById('uploadArea');
         const fileInput = document.getElementById('fileInput');
@@ -551,7 +551,7 @@
                     showError('API server is not responding. Please start the server.');
                 }
             } catch (error) {
-                showError('Cannot connect to API server. Please make sure it is running on port 8080.');
+                showError('Cannot connect to API server. Please make sure it is running.');
             }
         }
 

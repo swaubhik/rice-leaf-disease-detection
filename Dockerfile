@@ -1,4 +1,4 @@
-FROM python:3.9-slim
+FROM python:3.12-slim
 
 WORKDIR /app
 
@@ -20,11 +20,11 @@ COPY app/ ./app/
 COPY exported_models/ ./exported_models/
 
 # Expose port
-EXPOSE 8000
+EXPOSE 8001
 
 # Set environment variables
 ENV MODEL_PATH=exported_models/model.pt
 ENV METADATA_PATH=exported_models/model_metadata.json
 
 # Run the application
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001"]

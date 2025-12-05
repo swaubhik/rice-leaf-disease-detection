@@ -97,8 +97,8 @@ def show_next_steps():
     print("   python3 -m uvicorn app.main:app --reload")
     
     print("\n4. Test the API:")
-    print("   Open http://localhost:8000/docs in your browser")
-    print("   Or use: curl -X POST http://localhost:8000/predict -F 'file=@image.jpg'")
+    print("   Open http://localhost:8001/docs in your browser")
+    print("   Or use: curl -X POST http://localhost:8001/predict -F 'file=@image.jpg'")
     
     print("\n" + "=" * 60)
 

@@ -93,18 +93,18 @@ This creates:
 ### Step 5: Start the API
 
 ```bash
-python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
 ```
 
 The API will be available at:
-- API endpoint: http://localhost:8000
-- Interactive docs: http://localhost:8000/docs
-- Alternative docs: http://localhost:8000/redoc
+- API endpoint: http://localhost:8001
+- Interactive docs: http://localhost:8001/docs
+- Alternative docs: http://localhost:8001/redoc
 
 ### Step 6: Test the API
 
 **Using the browser**:
-1. Open http://localhost:8000/docs
+1. Open http://localhost:8001/docs
 2. Click on `/predict` endpoint
 3. Click "Try it out"
 4. Upload an image
@@ -112,7 +112,7 @@ The API will be available at:
 
 **Using curl**:
 ```bash
-curl -X POST "http://localhost:8000/predict" \
+curl -X POST "http://localhost:8001/predict" \
   -H "accept: application/json" \
   -H "Content-Type: multipart/form-data" \
   -F "file=@path/to/rice_leaf.jpg"
@@ -122,7 +122,7 @@ curl -X POST "http://localhost:8000/predict" \
 ```python
 import requests
 
-url = "http://localhost:8000/predict"
+url = "http://localhost:8001/predict"
 files = {"file": open("rice_leaf.jpg", "rb")}
 response = requests.post(url, files=files)
 
@@ -140,7 +140,7 @@ print(f"Confidence: {result['confidence']:.2%}")
 docker build -t rice-disease-api .
 
 # Run the container
-docker run -p 8000:8000 \
+docker run -p 8001:8001 \
   -v $(pwd)/exported_models:/app/exported_models:ro \
   rice-disease-api
 ```
@@ -249,6 +249,6 @@ Your rice leaf disease detection system is ready to use. The dataset is prepared
 2. ✅ Train the model: `python3 train.py --data-dir data --epochs 50`
 3. ✅ Export the model: `python3 export.py`
 4. ✅ Start the API: `python3 -m uvicorn app.main:app`
-5. ✅ Make predictions via API at http://localhost:8000/docs
+5. ✅ Make predictions via API at http://localhost:8001/docs
 
 Happy coding! 🚀

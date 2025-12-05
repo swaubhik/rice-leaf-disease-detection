@@ -170,17 +170,17 @@ This creates:
 
 **Local Development**:
 ```bash
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
 ```
 
 **Production**:
 ```bash
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
+uvicorn app.main:app --host 0.0.0.0 --port 8001 --workers 4
 ```
 
 ### API Endpoints
 
-The API will be available at `http://localhost:8000`
+The API will be available at `http://localhost:8001`
 
 - **Health Check**: `GET /health`
 - **Predict Disease**: `POST /predict`
@@ -192,12 +192,12 @@ The API will be available at `http://localhost:8000`
 
 **Health Check**:
 ```bash
-curl http://localhost:8000/health
+curl http://localhost:8001/health
 ```
 
 **Predict Disease**:
 ```bash
-curl -X POST "http://localhost:8000/predict" \
+curl -X POST "http://localhost:8001/predict" \
   -H "accept: application/json" \
   -H "Content-Type: multipart/form-data" \
   -F "file=@path/to/rice_leaf.jpg"
@@ -205,7 +205,7 @@ curl -X POST "http://localhost:8000/predict" \
 
 **Get Classes**:
 ```bash
-curl http://localhost:8000/classes
+curl http://localhost:8001/classes
 ```
 
 ### Python Client Example
@@ -214,7 +214,7 @@ curl http://localhost:8000/classes
 import requests
 
 # Predict disease
-url = "http://localhost:8000/predict"
+url = "http://localhost:8001/predict"
 files = {"file": open("rice_leaf.jpg", "rb")}
 response = requests.post(url, files=files)
 result = response.json()
@@ -233,7 +233,7 @@ print(f"Top predictions: {result['top_predictions']}")
 docker build -t rice-disease-api .
 
 # Run the container
-docker run -p 8000:8000 \
+docker run -p 8001:8001 \
   -v $(pwd)/exported_models:/app/exported_models:ro \
   rice-disease-api
 ```
