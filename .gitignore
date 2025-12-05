@@ -50,6 +50,7 @@ data/
 *.jpeg
 *.png
 *.bmp
+ray_results/
 
 # Logs
 *.log
