@@ -362,7 +362,7 @@
     </div>
 
     <script>
-        const API_URL = 'https://rice.eagriassit.in';
+        const API_URL = '';
 
         const uploadArea = document.getElementById('uploadArea');
         const fileInput = document.getElementById('fileInput');
@@ -546,12 +546,18 @@
         // Check API health on load
         async function checkAPIHealth() {
             try {
-                const response = await fetch(`${API_URL}/health`);
+                const response = await fetch(`${API_URL}/health`, {
+                    method: 'GET',
+                    cache: 'no-cache'
+                });
                 if (!response.ok) {
-                    showError('API server is not responding. Please start the server.');
+                    console.error('API health check failed:', response.status);
                 }
+                const data = await response.json();
+                console.log('API Status:', data);
             } catch (error) {
-                showError('Cannot connect to API server. Please make sure it is running.');
+                console.error('API connection error:', error);
+                // Don't show error immediately on page load, only when user tries to analyze
             }
         }
 

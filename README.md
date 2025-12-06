@@ -5,6 +5,7 @@ A complete deep learning system for detecting diseases in rice leaves using PyTo
 ## Features
 
 - **Transfer Learning**: Uses pre-trained models (ResNet50, ResNet101, EfficientNet) for better accuracy
+- **Hyperparameter Tuning**: Automated tuning with Ray Tune (ASHA, PBT, HyperOpt, BayesOpt)
 - **Data Augmentation**: Built-in augmentation for robust training
 - **Model Export**: Export to TorchScript and ONNX for production deployment
 - **REST API**: FastAPI-based API with automatic documentation
@@ -17,21 +18,32 @@ A complete deep learning system for detecting diseases in rice leaves using PyTo
 .
 ├── app/
 │   ├── __init__.py
-│   ├── main.py          # FastAPI application
-│   ├── inference.py     # Inference utilities
-│   └── schemas.py       # Pydantic schemas
+│   ├── main.py                    # FastAPI application
+│   ├── inference.py               # Inference utilities
+│   ├── schemas.py                 # Pydantic schemas
+│   └── static/                    # Static website files
+│       └── index.html
+├── nginx/
+│   └── default.conf               # Nginx reverse proxy config
 ├── tests/
 │   ├── __init__.py
-│   └── test_api.py      # API tests
-├── dataset.py           # Dataset loader
-├── models.py            # Model architectures
-├── train.py             # Training script
-├── export.py            # Model export script
-├── utils.py             # Utility functions
-├── requirements.txt     # Python dependencies
-├── Dockerfile           # Docker configuration
-├── docker-compose.yml   # Docker Compose configuration
-└── README.md            # This file
+│   └── test_api.py                # API tests
+├── examples/
+│   └── test_tuning.py             # Minimal tuning test
+├── dataset.py                     # Dataset loader
+├── models.py                      # Model architectures
+├── train.py                       # Training script
+├── tune_hyperparameters.py        # Ray Tune hyperparameter search
+├── train_with_best_config.py      # Train using best tuned config
+├── analyze_tuning_results.py      # Visualize tuning results
+├── export.py                      # Model export script
+├── utils.py                       # Utility functions
+├── requirements.txt               # Python dependencies
+├── Dockerfile                     # Docker configuration
+├── docker-compose.yml             # Docker Compose (API + Web)
+├── README.md                      # This file
+├── HYPERPARAMETER_TUNING.md       # Detailed tuning guide
+└── QUICKSTART_TUNING.md           # Quick start for tuning
 ```
 
 ## Installation
@@ -146,6 +158,50 @@ python train.py \
 ```bash
 python train.py --resume checkpoints/best_model_checkpoint.pth
 ```
+
+## Hyperparameter Tuning
+
+Automatically find optimal hyperparameters using Ray Tune:
+
+### Quick Start
+
+```bash
+# Run tuning with 20 different configurations
+python tune_hyperparameters.py --data-dir data --num-samples 20
+
+# Use the best config to train
+python train_with_best_config.py --epochs 100
+```
+
+### Advanced Tuning
+
+```bash
+# Use Population Based Training (good for dynamic adjustment)
+python tune_hyperparameters.py \
+    --data-dir data \
+    --search-alg pbt \
+    --num-samples 15 \
+    --max-epochs 30 \
+    --gpus-per-trial 0.5
+
+# Use HyperOpt (efficient Bayesian optimization)
+python tune_hyperparameters.py \
+    --data-dir data \
+    --search-alg hyperopt \
+    --num-samples 25 \
+    --max-epochs 20
+```
+
+### Tuning Options
+
+- `--search-alg`: Search algorithm - `asha`, `pbt`, `hyperopt`, `bayesopt` (default: `asha`)
+- `--num-samples`: Number of configurations to try (default: `20`)
+- `--max-epochs`: Maximum epochs per trial (default: `20`)
+- `--gpus-per-trial`: GPUs per trial, can be fractional (default: `0.5`)
+- `--cpus-per-trial`: CPUs per trial (default: `4`)
+- `--tune-dir`: Results directory (default: `ray_results`)
+
+**See [HYPERPARAMETER_TUNING.md](HYPERPARAMETER_TUNING.md) for detailed guide.**
 
 ## Model Export
 

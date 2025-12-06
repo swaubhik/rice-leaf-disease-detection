@@ -2,6 +2,10 @@
 import torch
 import torch.nn as nn
 from torchvision import models
+from torchvision.models import (
+    ResNet50_Weights, ResNet101_Weights,
+    EfficientNet_B0_Weights, EfficientNet_B3_Weights
+)
 from typing import Optional
 
 
@@ -30,22 +34,26 @@ class RiceLeafClassifier(nn.Module):
         
         # Load backbone model
         if model_name == "resnet50":
-            self.backbone = models.resnet50(pretrained=pretrained)
+            weights = ResNet50_Weights.DEFAULT if pretrained else None
+            self.backbone = models.resnet50(weights=weights)
             num_features = self.backbone.fc.in_features
             self.backbone.fc = nn.Identity()  # Remove original FC layer
             
         elif model_name == "resnet101":
-            self.backbone = models.resnet101(pretrained=pretrained)
+            weights = ResNet101_Weights.DEFAULT if pretrained else None
+            self.backbone = models.resnet101(weights=weights)
             num_features = self.backbone.fc.in_features
             self.backbone.fc = nn.Identity()
             
         elif model_name == "efficientnet_b0":
-            self.backbone = models.efficientnet_b0(pretrained=pretrained)
+            weights = EfficientNet_B0_Weights.DEFAULT if pretrained else None
+            self.backbone = models.efficientnet_b0(weights=weights)
             num_features = self.backbone.classifier[1].in_features
             self.backbone.classifier = nn.Identity()
             
         elif model_name == "efficientnet_b3":
-            self.backbone = models.efficientnet_b3(pretrained=pretrained)
+            weights = EfficientNet_B3_Weights.DEFAULT if pretrained else None
+            self.backbone = models.efficientnet_b3(weights=weights)
             num_features = self.backbone.classifier[1].in_features
             self.backbone.classifier = nn.Identity()
             
