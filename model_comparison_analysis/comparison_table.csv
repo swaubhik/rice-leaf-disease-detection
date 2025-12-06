@@ -1,0 +1,14 @@
+Metric,Baseline Model,Tuned Model,Improvement
+Validation Accuracy (%),99.90,100.00,+0.10%
+Validation Loss,0.0000,0.5074,+0.5074
+Training Accuracy (%),0.00,99.83,+99.83%
+Training Loss,0.0000,0.5182,+0.5182
+Epochs Trained,29,19,Changed
+Model Architecture,resnet50,resnet50,
+Batch Size,N/A,64,Changed
+Learning Rate,N/A,0.0020238870354113737,Changed
+Dropout,N/A,0.24419621567586003,Changed
+Image Size,N/A,288,Changed
+Optimizer,N/A,adamw,Changed
+Scheduler,N/A,reduce_on_plateau,Changed
+Label Smoothing,N/A,0.1087548230087984,Changed
