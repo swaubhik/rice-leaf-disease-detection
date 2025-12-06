@@ -48,7 +48,7 @@ exported_models/
 data/
 *.jpg
 *.jpeg
-*.png
+# *.png
 *.bmp
 ray_results/
 
