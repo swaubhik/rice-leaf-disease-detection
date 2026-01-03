@@ -1,8 +1,31 @@
 version: '3.8'
 
 services:
+  # 1. NEW: The AI Brain (Runs Llama 3 on A6000)
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama_brain
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+    volumes:
+      - ollama_storage:/root/.ollama
+    # This block enables your NVIDIA A6000
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  # 2. YOUR EXISTING API (Updated to talk to Ollama)
   api:
     build: .
+    container_name: rice_api
     ports:
       - "8001:8001"
     volumes:
@@ -10,10 +33,15 @@ services:
     environment:
       - MODEL_PATH=exported_models/model.pt
       - METADATA_PATH=exported_models/model_metadata.json
+      - OLLAMA_HOST=http://ollama:11434  # <--- Added: Points to the new service
+    depends_on:
+      - ollama  # <--- Added: Wait for brain to start
     restart: unless-stopped
 
+  # 3. YOUR EXISTING WEB FRONTEND (Unchanged)
   web:
     image: nginx:alpine
+    container_name: rice_web
     depends_on:
       - api
     ports:
@@ -22,6 +50,10 @@ services:
       - ./app/static:/usr/share/nginx/html:ro
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
     restart: unless-stopped
+
+# 4. VOLUMES (For storing the 5GB Llama model)
+volumes:
+  ollama_storage:
 
 networks:
   default:

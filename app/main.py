@@ -1,4 +1,4 @@
-"""FastAPI application for rice leaf disease detection."""
+"""FastAPI application for rice leaf disease detection and fertilizer recommendation."""
 import os
 import json
 from pathlib import Path
@@ -12,6 +12,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image
 import io
 import numpy as np
+import httpx  # Required for calling Ollama
+from pydantic import BaseModel # Required for Soil Data validation
 
 from app.schemas import PredictionResponse, HealthResponse
 from app.inference import ModelInference
@@ -19,9 +21,9 @@ from app.inference import ModelInference
 
 # Initialize FastAPI app
 app = FastAPI(
-    title="Rice Leaf Disease Detection API",
-    description="API for detecting diseases in rice leaves using deep learning",
-    version="1.0.0"
+    title="Rice Leaf Disease Detection & Agronomy API",
+    description="API for detecting diseases in rice leaves and providing fertilizer advice using GenAI",
+    version="2.0.0"
 )
 
 # Add CORS middleware
@@ -53,12 +55,15 @@ async def startup_event():
     
     if not os.path.exists(model_path):
         print(f"Warning: Model not found at {model_path}")
-        print("API will start but predictions will fail until model is loaded.")
+        print("API will start but image predictions will fail until model is loaded.")
         return
     
     print(f"Loading model from: {model_path}")
-    model_inference = ModelInference(model_path, metadata_path)
-    print("Model loaded successfully!")
+    try:
+        model_inference = ModelInference(model_path, metadata_path)
+        print("Model loaded successfully!")
+    except Exception as e:
+        print(f"Failed to load model: {e}")
 
 
 @app.get("/")
@@ -68,13 +73,13 @@ async def root():
     if static_file.exists():
         return FileResponse(static_file)
     return {
-        "message": "Rice Leaf Disease Detection API",
-        "version": "1.0.0",
+        "message": "Rice Leaf Disease & Fertilizer API",
+        "version": "2.0.0",
         "endpoints": {
             "health": "/health",
-            "predict": "/predict",
-            "docs": "/docs",
-            "web": "/"
+            "predict_disease": "/predict",
+            "recommend_fertilizer": "/recommend/fertilizer",
+            "docs": "/docs"
         }
     }
 
@@ -84,63 +89,130 @@ async def health():
     """Health check endpoint."""
     model_loaded = model_inference is not None
     
+    # You could also check if Ollama is reachable here
+    ollama_status = "unknown"
+    try:
+        async with httpx.AsyncClient(timeout=1.0) as client:
+            resp = await client.get("http://ollama:11434")
+            if resp.status_code == 200:
+                ollama_status = "reachable"
+    except:
+        ollama_status = "unreachable"
+
     return HealthResponse(
         status="healthy" if model_loaded else "degraded",
         model_loaded=model_loaded,
-        message="API is running" if model_loaded else "Model not loaded"
+        message=f"Vision Model: {'Loaded' if model_loaded else 'Missing'}, AI Brain: {ollama_status}"
     )
 
 
+# --- IMAGE PREDICTION ENDPOINT ---
 @app.post("/predict", response_model=PredictionResponse)
 async def predict(file: UploadFile = File(...)):
-    """Predict disease from uploaded image.
-    
-    Args:
-        file: Uploaded image file
-        
-    Returns:
-        Prediction response with class, confidence, and top predictions
-    """
-    # Check if model is loaded
+    """Predict disease from uploaded image."""
     if model_inference is None:
-        raise HTTPException(
-            status_code=503,
-            detail="Model not loaded. Please check server logs."
-        )
+        raise HTTPException(status_code=503, detail="Vision Model not loaded.")
     
-    # Validate file type
     if not file.content_type.startswith("image/"):
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid file type: {file.content_type}. Please upload an image."
-        )
+        raise HTTPException(status_code=400, detail=f"Invalid file type: {file.content_type}")
     
     try:
-        # Read image
         contents = await file.read()
         image = Image.open(io.BytesIO(contents)).convert('RGB')
-        
-        # Make prediction
         result = model_inference.predict(image)
-        
         return PredictionResponse(**result)
-        
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error processing image: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Error processing image: {str(e)}")
+
+# --- NEW: Soil Data Schema ---
+class SoilData(BaseModel):
+    n: int
+    p: int
+    k: int
+    ph: float
+    ec: float = 0.0 # Default to 0 if not provided
+    soilTemp: float = 25.0 # Default to 25°C if not provided
+    soilMoisture: float = 0.0 # Default to 0 if not provided
+    crop : str = "rice" # Default crop is rice
+
+# --- NEW: FERTILIZER RECOMMENDATION ENDPOINT ---
+@app.post("/recommend/fertilizer")
+async def recommend_fertilizer(data: SoilData):
+    """
+    1. Calculates NPK deficit using standard math (Safety Layer).
+    2. Asks Local LLM (Ollama) for advice and context (Intelligence Layer).
+    """
+    
+    # 1. Deterministic Math Rule (Safety Layer)
+    # Simple logic: Target N for Rice is approx 120 kg/ha.
+    # Urea has 46% N. So 1 kg N needs ~2.2 kg Urea.
+    needed_n = max(0, 120 - data.n)
+    needed_urea = needed_n * 2.2 
+
+    # 2. AI Context Layer (Ollama on A6000)
+    # This prompt tells Llama 3 exactly what to do.
+    prompt = f"""
+    You are an expert agronomist in Assam, India.
+    Analyze this soil sample for growing {data.crop}.
+    Provide concise fertilizer advice based on the following data:
+    - Nitrogen: {data.n} mg/kg (Calculated deficit: {needed_n} mg/kg)
+    - Phosphorus: {data.p} mg/kg
+    - Potassium: {data.k} mg/kg
+    - pH: {data.ph}
+    - EC: {data.ec}
+    - Soil Temperature: {data.soilTemp} °C
+    - Soil Moisture: {data.soilMoisture} %
+
+    The math suggests applying {needed_urea:.1f} kg/ha of Urea. 
+    
+    TASK:
+    1. Confirm if this Urea dosage is safe based on the pH.
+    2. Suggest 1 organic alternative available in India.
+    3. If pH is acidic (< 6.0) or alkaline (> 7.5), suggest a correction (Lime/Gypsum).
+    4. Keep the response concise (under 4 sentences).
+    """
+
+    ai_advice = "AI Service Unavailable"
+
+    try:
+        # Call the sibling docker container "ollama"
+        # We use a longer timeout (45s) because Generative AI takes a moment to "think"
+        async with httpx.AsyncClient(timeout=45.0) as client:
+            response = await client.post(
+                "http://ollama:11434/api/generate",
+                json={
+                    "model": "llama3",
+                    "prompt": prompt,
+                    "stream": False
+                }
+            )
+            if response.status_code == 200:
+                ai_advice = response.json().get('response', 'No response generated')
+            else:
+                print(f"Ollama Error: {response.text}")
+
+    except Exception as e:
+        print(f"Failed to connect to Ollama: {e}")
+        ai_advice = "Could not connect to the AI Agronomist. Please follow standard NPK charts."
+
+    return {
+        "soil_status": {
+            "nitrogen_level": "Low" if data.n < 120 else "Adequate",
+            "ph_status": "Acidic" if data.ph < 6.0 else ("Alkaline" if data.ph > 7.5 else "Neutral")
+        },
+        "calculated_dosage": {
+            "urea_kg_per_ha": round(needed_urea, 2),
+            "dap_kg_per_ha": 0 # Placeholder for DAP logic
+        },
+        "agronomist_advice": ai_advice
+    }
 
 
 @app.get("/classes", response_model=Dict[str, List[str]])
 async def get_classes():
     """Get list of disease classes."""
     if model_inference is None:
-        raise HTTPException(
-            status_code=503,
-            detail="Model not loaded"
-        )
-    
+        raise HTTPException(status_code=503, detail="Model not loaded")
     return {"classes": model_inference.classes}
 
 
