@@ -124,87 +124,47 @@ async def predict(file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing image: {str(e)}")
 
-# --- NEW: Soil Data Schema ---
-class SoilData(BaseModel):
-    n: int
-    p: int
-    k: int
-    ph: float
-    ec: float = 0.0 # Default to 0 if not provided
-    soilTemp: float = 25.0 # Default to 25°C if not provided
-    soilMoisture: float = 0.0 # Default to 0 if not provided
-    crop : str = "rice" # Default crop is rice
-
+# --- NEW: Prompt Request Schema ---
+class PromptRequest(BaseModel):
+    prompt: str
+    soil_data: dict = {} # Optional, for logging or metadata if needed
 # --- NEW: FERTILIZER RECOMMENDATION ENDPOINT ---
 @app.post("/recommend/fertilizer")
-async def recommend_fertilizer(data: SoilData):
+async def recommend_fertilizer(request: PromptRequest):
     """
-    1. Calculates NPK deficit using standard math (Safety Layer).
-    2. Asks Local LLM (Ollama) for advice and context (Intelligence Layer).
+    Receives a pre-constructed prompt from Laravel and forwards it to Ollama.
     """
     
-    # 1. Deterministic Math Rule (Safety Layer)
-    # Simple logic: Target N for Rice is approx 120 kg/ha.
-    # Urea has 46% N. So 1 kg N needs ~2.2 kg Urea.
-    needed_n = max(0, 120 - data.n)
-    needed_urea = needed_n * 2.2 
-
-    # 2. AI Context Layer (Ollama on A6000)
-    # This prompt tells Llama 3 exactly what to do.
-    prompt = f"""
-    You are an expert agronomist in Assam, India.
-    Analyze this soil sample for growing {data.crop}.
-    Provide concise fertilizer advice based on the following data:
-    - Nitrogen: {data.n} mg/kg (Calculated deficit: {needed_n} mg/kg)
-    - Phosphorus: {data.p} mg/kg
-    - Potassium: {data.k} mg/kg
-    - pH: {data.ph}
-    - EC: {data.ec}
-    - Soil Temperature: {data.soilTemp} °C
-    - Soil Moisture: {data.soilMoisture} %
-
-    The math suggests applying {needed_urea:.1f} kg/ha of Urea. 
-    
-    TASK:
-    1. Confirm if this Urea dosage is safe based on the pH.
-    2. Suggest 1 organic alternative available in India.
-    3. If pH is acidic (< 6.0) or alkaline (> 7.5), suggest a correction (Lime/Gypsum).
-    4. Keep the response concise (under 4 sentences).
-    """
-
     ai_advice = "AI Service Unavailable"
-
+    
+    # Use the prompt constructed in Laravel
+    prompt = request.prompt
     try:
         # Call the sibling docker container "ollama"
-        # We use a longer timeout (45s) because Generative AI takes a moment to "think"
-        async with httpx.AsyncClient(timeout=45.0) as client:
+        # We use a longer timeout (60s) because Generative AI takes a moment to "think"
+        async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(
                 "http://ollama:11434/api/generate",
                 json={
                     "model": "llama3",
                     "prompt": prompt,
-                    "stream": False
+                    "stream": False,
+                    "format": "json" # Ensure Ollama knows we want JSON
                 }
             )
             if response.status_code == 200:
+                # Get the 'response' field from Ollama's JSON output
                 ai_advice = response.json().get('response', 'No response generated')
             else:
                 print(f"Ollama Error: {response.text}")
-
+                ai_advice = "Error: Ollama service returned an error."
     except Exception as e:
         print(f"Failed to connect to Ollama: {e}")
-        ai_advice = "Could not connect to the AI Agronomist. Please follow standard NPK charts."
-
+        ai_advice = "Could not connect to the AI Agronomist."
+    # Return the raw JSON string from Ollama wrapped in a generic response key.
+    # The Laravel service will parse the internal JSON structure.
     return {
-        "soil_status": {
-            "nitrogen_level": "Low" if data.n < 120 else "Adequate",
-            "ph_status": "Acidic" if data.ph < 6.0 else ("Alkaline" if data.ph > 7.5 else "Neutral")
-        },
-        "calculated_dosage": {
-            "urea_kg_per_ha": round(needed_urea, 2),
-            "dap_kg_per_ha": 0 # Placeholder for DAP logic
-        },
-        "agronomist_advice": ai_advice
+        "response": ai_advice
     }
 
 
