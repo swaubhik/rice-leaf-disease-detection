@@ -175,9 +175,14 @@ async def get_classes():
         raise HTTPException(status_code=503, detail="Model not loaded")
     return {"classes": model_inference.classes}
 
-# Endpoint to use Ollama for different types of prompts.
-@app.post("/prompt")
-async def handle_prompt(request: PromptRequest):
+# Endpoint to use Ollama for different types of prompts like interacting with the GenAI for various advice, 
+# not just fertilizer recommendations. 
+# This keeps the API flexible and allows Laravel to construct any prompt it wants for different use cases.
+class GenericPromptRequest(BaseModel):
+    prompt: str
+
+@app.post("/ask")
+async def ask(request: GenericPromptRequest):
     """
     A generic endpoint to handle any prompt from Laravel and forward it to Ollama.
     This can be used for various types of advice, not just fertilizer recommendations.
