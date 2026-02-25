@@ -199,7 +199,6 @@ async def ask(request: GenericPromptRequest):
                     "model": "llama3",
                     "prompt": prompt,
                     "stream": False,
-                    "format": "json"
                 }
             )
             if response.status_code == 200:
