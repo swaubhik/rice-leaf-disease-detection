@@ -175,6 +175,40 @@ async def get_classes():
         raise HTTPException(status_code=503, detail="Model not loaded")
     return {"classes": model_inference.classes}
 
+# Endpoint to use Ollama for different types of prompts.
+@app.post("/prompt")
+async def handle_prompt(request: PromptRequest):
+    """
+    A generic endpoint to handle any prompt from Laravel and forward it to Ollama.
+    This can be used for various types of advice, not just fertilizer recommendations.
+    """
+    
+    ai_response = "AI Service Unavailable"
+    
+    prompt = request.prompt
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(
+                "http://ollama:11434/api/generate",
+                json={
+                    "model": "llama3",
+                    "prompt": prompt,
+                    "stream": False,
+                    "format": "json"
+                }
+            )
+            if response.status_code == 200:
+                ai_response = response.json().get('response', 'No response generated')
+            else:
+                print(f"Ollama Error: {response.text}")
+                ai_response = "Error: Ollama service returned an error."
+    except Exception as e:
+        print(f"Failed to connect to Ollama: {e}")
+        ai_response = "Could not connect to the AI service."
+    
+    return {
+        "response": ai_response
+    }
 
 if __name__ == "__main__":
     import uvicorn
