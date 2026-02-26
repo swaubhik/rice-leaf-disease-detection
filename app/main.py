@@ -214,6 +214,27 @@ async def ask(request: GenericPromptRequest):
         "response": ai_response
     }
 
+class EmbedRequest(BaseModel):
+    text: str
+@app.post("/embed")
+async def generate_embedding(request: EmbedRequest):
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.post(
+                "http://ollama:11434/api/embeddings",
+                json={
+                    "model": "llama3",
+                    "prompt": request.text
+                },
+                timeout=60.0
+            )
+            response.raise_for_status()
+            data = response.json()
+            return {"embedding": data.get("embedding")}
+            
+        except httpx.HTTPError as e:
+            raise HTTPException(status_code=500, detail=f"Ollama API Error: {str(e)}")
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8001)
